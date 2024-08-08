@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ping Pong Clásico</title>
+<title>Ping Pong Mejorado</title>
 <style>
 body {
   margin: 0;
@@ -17,23 +17,54 @@ body {
 canvas {
   border: 2px solid white;
 }
-#scoreBoard {
+#scoreBoard, #levelDisplay {
   position: absolute;
-  top: 10px;
   color: white;
   font-size: 24px;
   font-weight: bold;
+}
+#scoreBoard { top: 10px; }
+#levelDisplay { top: 40px; }
+#gameMenu {
+  position: absolute;
+  background-color: rgba(0,0,0,0.7);
+  padding: 20px;
+  border-radius: 10px;
+  color: white;
+  text-align: center;
+}
+#gameMenu button, #soundUrlInput {
+  margin: 10px;
+  padding: 10px;
+  font-size: 16px;
 }
 </style>
 </head>
 <body>
 <div id="scoreBoard">0 : 0</div>
+<div id="levelDisplay">Nivel: 1</div>
 <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+<div id="gameMenu">
+  <h2>Ping Pong</h2>
+  <button id="startEasyBtn">Fácil</button>
+  <button id="startMediumBtn">Medio</button>
+  <button id="startHardBtn">Difícil</button>
+  <br>
+  <input type="text" id="soundUrlInput" placeholder="URL del sonido de golpe">
+</div>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreBoard = document.getElementById('scoreBoard');
+const levelDisplay = document.getElementById('levelDisplay');
+const gameMenu = document.getElementById('gameMenu');
+const soundUrlInput = document.getElementById('soundUrlInput');
+
+let gameState = 'menu';
+let level = 1;
+let hitSound;
 
 // Game objects
 const ball = {
@@ -61,7 +92,7 @@ const rightPaddle = {
   y: canvas.height / 2 - paddleHeight / 2,
   width: paddleWidth,
   height: paddleHeight,
-  dy: 5
+  dy: 4
 };
 
 let leftScore = 0;
@@ -83,6 +114,7 @@ function drawPaddle(paddle) {
 
 function drawScore() {
   scoreBoard.innerHTML = `${leftScore} : ${rightScore}`;
+  levelDisplay.innerHTML = `Nivel: ${level}`;
 }
 
 // Update game state
@@ -102,6 +134,8 @@ function update() {
     (ball.x + ball.radius > rightPaddle.x && ball.y > rightPaddle.y && ball.y < rightPaddle.y + rightPaddle.height)
   ) {
     ball.dx *= -1;
+    if (hitSound) hitSound.play();
+    increaseSpeed();
   }
 
   // Score points
@@ -113,23 +147,41 @@ function update() {
     resetBall();
   }
 
-  // AI for right paddle
-  if (rightPaddle.y + rightPaddle.height / 2 < ball.y) {
+  // AI for right paddle (with imperfection)
+  const paddleCenter = rightPaddle.y + rightPaddle.height / 2;
+  const randomOffset = Math.random() * 20 - 10; // Random offset between -10 and 10
+  if (paddleCenter < ball.y + randomOffset) {
     rightPaddle.y += rightPaddle.dy;
   } else {
     rightPaddle.y -= rightPaddle.dy;
   }
+
+  // Keep AI paddle within canvas
+  rightPaddle.y = Math.max(Math.min(rightPaddle.y, canvas.height - rightPaddle.height), 0);
 }
 
 function resetBall() {
   ball.x = canvas.width / 2;
   ball.y = canvas.height / 2;
   ball.dx = -ball.dx;
-  ball.dy = Math.random() > 0.5 ? 5 : -5;
+  ball.dy = Math.random() > 0.5 ? ball.speed : -ball.speed;
+}
+
+function increaseSpeed() {
+  ball.speed += 0.2;
+  ball.dx = ball.dx > 0 ? ball.speed : -ball.speed;
+  ball.dy = ball.dy > 0 ? ball.speed : -ball.speed;
+  
+  if (Math.max(leftScore, rightScore) % 5 === 0) {
+    level++;
+    levelDisplay.innerHTML = `Nivel: ${level}`;
+  }
 }
 
 // Game loop
 function gameLoop() {
+  if (gameState !== 'playing') return;
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
   drawBall();
@@ -144,14 +196,60 @@ function gameLoop() {
 
 // Paddle control
 document.addEventListener('mousemove', (e) => {
+  if (gameState !== 'playing') return;
   const relativeY = e.clientY - canvas.offsetTop;
   if (relativeY > 0 && relativeY < canvas.height) {
     leftPaddle.y = relativeY - paddleHeight / 2;
   }
 });
 
-// Start the game
-gameLoop();
+// Start game function
+function startGame(difficulty) {
+  gameState = 'playing';
+  gameMenu.style.display = 'none';
+  leftScore = 0;
+  rightScore = 0;
+  level = 1;
+
+  // Set initial speed based on difficulty
+  switch(difficulty) {
+    case 'easy':
+      ball.speed = 4;
+      rightPaddle.dy = 3;
+      break;
+    case 'medium':
+      ball.speed = 6;
+      rightPaddle.dy = 4;
+      break;
+    case 'hard':
+      ball.speed = 8;
+      rightPaddle.dy = 5;
+      break;
+  }
+
+  ball.dx = ball.speed;
+  ball.dy = ball.speed;
+
+  resetBall();
+  gameLoop();
+}
+
+// Event listeners for difficulty buttons
+document.getElementById('startEasyBtn').addEventListener('click', () => startGame('easy'));
+document.getElementById('startMediumBtn').addEventListener('click', () => startGame('medium'));
+document.getElementById('startHardBtn').addEventListener('click', () => startGame('hard'));
+
+// Sound setup
+soundUrlInput.addEventListener('change', () => {
+  const soundUrl = soundUrlInput.value;
+  if (soundUrl) {
+    hitSound = new Audio(soundUrl);
+  }
+});
+
+// Initial setup
+gameState = 'menu';
+gameMenu.style.display = 'block';
 </script>
 </body>
 </html>
